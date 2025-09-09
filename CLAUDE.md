@@ -8,16 +8,61 @@
 
 This is a fork of the official Blender 3DM import addon with specific fixes for collection management and improved default settings.
 
-## Recent Changes (v0.0.17-alpha3)
+## Project Status: v0.0.17-beta1 RELEASE READY ✅
 
-### Fresh Blocks Import Bug Fix (v0.0.17-alpha3)
-**Problem**: When using "Update Block Definitions" (fresh blocks), block instances weren't properly linking to their definitions due to UUID collision between `handle_instance_definitions()` and `populate_instance_definitions()` functions.
+### 🎯 Major Accomplishments (September 2024)
 
-**Root Cause**: Both functions independently generated versioned collection names, potentially creating different version numbers and mismatched UUIDs for the same block definition.
+**✅ COMPREHENSIVE MATERIAL REUSE FIX**
+- **Problem Solved**: Scenario #4 (Fresh Definitions + Preserve Materials) was creating new materials (.001, .002) instead of reusing existing ones
+- **Root Cause**: Material processing had two separate paths - render materials (PBR) and basic materials. Only render materials had reuse logic.
+- **Complete Solution**: Implemented comprehensive material reuse system for ALL material types:
+  - Default materials (Rhino Default Material, Rhino Default Text)  
+  - Render materials (PBR materials with render content)
+  - Basic materials (simple materials without render content)
+- **Location**: `import_3dm/converters/material.py:580-655`
+- **Result**: All scenarios (1, 4, 6) now work perfectly
 
-**Solution**: Modified `populate_instance_definitions()` to reuse the layername already determined by `handle_instance_definitions()`, ensuring consistent UUID generation.
+**✅ FRESH BLOCKS UUID COLLISION FIX**
+- **Problem**: UUID collision between `handle_instance_definitions()` and `populate_instance_definitions()` functions
+- **Solution**: Coordinated layername generation between both functions
 - **Location**: `import_3dm/converters/instances.py:141-152`
-- **Fix**: Added fallback logic and proper layername coordination between functions
+
+**✅ UI/UX IMPROVEMENTS**
+- Reorganized import dialog with emoji icons (🔺 Geometry, 📦 Blocks, 🎨 Materials, etc.)
+- Added mesh vertex merging controls with millimeter precision
+- Improved material handling options with clear descriptions
+- Better panel organization and layout
+
+**✅ TECHNICAL FIXES**
+- Fixed `model.Settings` null check to prevent import crashes (`read3dm.py:121-126`)
+- Added comprehensive debug output for troubleshooting
+- Enhanced error handling for edge cases
+
+### 🧪 Testing Results
+- **Scenario #1** (Fresh + Create New): ✅ Working perfectly
+- **Scenario #4** (Fresh + Preserve): ✅ **FIXED** - No more unwanted material versions
+- **Scenario #6** (Preserve + Preserve): ✅ Working perfectly
+
+### 📋 Current Status (September 9, 2024)
+- **Version**: v0.0.17-beta1
+- **Git Status**: All changes committed and pushed to GitHub
+- **Release Assets**: `import_3dm_v0.0.17-beta1.zip` created and ready
+- **GitHub Release**: Ready to publish (manual upload needed)
+- **Documentation**: Updated with comprehensive change log
+
+### 🚀 Next Steps
+1. **READY FOR RELEASE**: Upload `import_3dm_v0.0.17-beta1.zip` to GitHub releases
+2. **Future Development**: Monitor user feedback on beta1 release
+3. **Potential v1.0**: If beta1 is stable, consider full release
+
+### 🎯 Key User Scenarios Working
+The fork successfully addresses the main user pain points:
+- ✅ Material preservation during fresh imports (no more .001 versions)
+- ✅ Block definition consistency (no more UUID conflicts)  
+- ✅ Improved UI for better user experience
+- ✅ Enhanced debugging capabilities for troubleshooting
+
+**Status: COMPLETE AND RELEASE-READY** 🎉
 
 ## Previous Changes (v0.0.17)
 

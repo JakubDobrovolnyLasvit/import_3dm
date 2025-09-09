@@ -2,6 +2,76 @@
 
 Project-specific API patterns and solutions for the Import Rhinoceros 3D addon.
 
+## 🚨 CRITICAL LESSONS LEARNED (v0.0.17-beta1)
+
+### Material System Architecture - TWO PROCESSING PATHS
+**CRITICAL**: Rhino materials have TWO separate processing paths in the import system:
+
+1. **Render Materials** (PBR materials with render content):
+   ```python
+   m = model.RenderContent.FindId(mat.RenderMaterialInstanceId)
+   if m:  # Has render content
+       matname = rendermaterial_name(m)
+   ```
+
+2. **Basic Materials** (materials without render content):
+   ```python
+   else:  # No render content
+       matname = material_name(mat)
+   ```
+
+**BUG PATTERN**: Original code only implemented reuse logic for render materials, causing basic materials to fall back to default materials or get versioned (.001, .002).
+
+**SOLUTION**: Process BOTH material types with same reuse logic:
+```python
+# Process ALL materials comprehensively
+for mat in model.Materials:
+    # First: Handle render materials (PBR)
+    render_mat = model.RenderContent.FindId(mat.RenderMaterialInstanceId)
+    if render_mat:
+        matname = rendermaterial_name(render_mat)
+        # Apply reuse logic here
+    else:
+        # Second: Handle basic materials 
+        if mat.Name != "":  # Skip empty names (use default)
+            matname = material_name(mat)
+            # Apply SAME reuse logic here
+```
+
+### Material Reuse Pattern (Universal)
+**Apply to ALL material types** (default, render, basic):
+```python
+reuse_materials = options.get("reuse_existing_materials", True)
+
+if reuse_materials:
+    # Check if material already exists in blend data
+    existing_mat = context.blend_data.materials.get(matname)
+    if existing_mat is not None:
+        blmat = existing_mat  # Reuse existing
+        print(f"  → Found and reusing existing material: {matname}")
+    else:
+        print(f"  → No existing material found, creating new one")
+        blmat = utils.get_or_create_iddata(context.blend_data.materials, tags, None)
+else:
+    # Create new versioned material (.001, .002, etc.)
+    print(f"  → Creating new versioned material")
+    blmat = utils.get_or_create_iddata(context.blend_data.materials, tags, None)
+```
+
+### UUID Collision in Block Processing
+**CRITICAL**: `handle_instance_definitions()` and `populate_instance_definitions()` must use SAME layername to avoid UUID conflicts:
+
+```python
+# In handle_instance_definitions()
+layername = get_layername_for_block(idef)  # Store in options
+options[f"layername_{idef.Id}"] = layername
+
+# In populate_instance_definitions()  
+layername = options.get(f"layername_{idef.Id}")  # Reuse same layername
+if not layername:  # Fallback
+    layername = create_layername_fallback(idef)
+```
+
 ## Import/Export Operator Patterns
 
 ### ImportHelper Integration
