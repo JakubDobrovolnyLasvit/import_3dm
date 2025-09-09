@@ -59,7 +59,9 @@ RHINO_TYPE_TO_IMPORT = {
 def initialize(
         context     : bpy.types.Context
 ) -> None:
-    utils.reset_all_dict(context)
+    # Initialize fresh dictionary structure without existing objects
+    # This prevents object sharing between different import sessions
+    utils.init_fresh_dict(context)
 
 def cleanup() -> None:
     utils.clear_all_dict()
@@ -103,6 +105,7 @@ def convert_object(
     if data is not None:
         data.materials.clear()
         data.materials.append(rhinomat)
+        print(f"Object '{name}' getting material: {rhinomat.name}")
         blender_object = utils.get_or_create_iddata(context.blend_data.objects, tags, data)
         if link_materials_to == "PREFERENCES":
             link_materials_to = bpy.context.preferences.edit.material_link

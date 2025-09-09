@@ -104,10 +104,12 @@ def import_render_mesh(context, ob, name, scale, options):
         mesh.validate()
         mesh.update()
 
-    if needs_welding:
+    merge_vertices_enabled = options.get("merge_vertices", True)
+    if needs_welding and merge_vertices_enabled:
         bm = bmesh.new()
         bm.from_mesh(mesh)
-        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.001)
+        merge_dist = options.get("merge_distance", 0.000001)  # Configurable merge distance
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=merge_dist)
         bm.to_mesh(mesh)
         bm.free()
         if bpy.app.version >= (4, 1):

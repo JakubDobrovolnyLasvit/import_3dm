@@ -30,17 +30,22 @@ def handle_layers(context, model, toplayer, layerids, materials, update, import_
     Update materials dictionary with materials created
     for layer color.
     """
-    #setup main container to hold all layer collections
-    layer_col_id="Layers"
-    if not layer_col_id in context.blend_data.collections:
-            layer_col = context.blend_data.collections.new(name=layer_col_id)
-            try:
-                toplayer.children.link(layer_col)
-            except Exception:
-                pass
-    else:
-        #If "Layers" collection is in place, we assume the plugin had imported 3dm before
-        layer_col = context.blend_data.collections[layer_col_id]
+    #setup main container to hold all layer collections - always create new to avoid contamination
+    base_layer_name = "Layers"
+    version = 1
+    layer_col_id = base_layer_name
+    
+    # Find next available version number for Layers collection
+    while layer_col_id in context.blend_data.collections:
+        version += 1
+        layer_col_id = f"{base_layer_name}_v{version}"
+    
+    # Always create new Layers collection with version suffix
+    layer_col = context.blend_data.collections.new(name=layer_col_id)
+    try:
+        toplayer.children.link(layer_col)
+    except Exception:
+        pass
 
     # build lookup table for LayerTable index
     # from GUID, create collection for each

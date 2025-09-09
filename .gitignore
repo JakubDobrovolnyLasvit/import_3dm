@@ -112,3 +112,6 @@ venv.bak/
 
 # MacOS
 .DS_Store
+
+# Rhino 3D model files
+*.3dm

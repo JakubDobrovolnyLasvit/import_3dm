@@ -300,6 +300,12 @@ def glass_material(rhino_material : r3d.RenderMaterial, blender_material : bpy.t
     glass.roughness = roughness
     glass.metallic = 0.0
     glass.ior= ior
+    
+    # Set material blend mode for glass transparency (Blender 4.2+ compatibility)
+    if hasattr(blender_material, 'render_method'):
+        blender_material.render_method = 'BLENDED'  # Modern API
+    else:
+        blender_material.blend_method = 'BLEND'     # Legacy fallback
 
 def plastic_material(rhino_material : r3d.RenderMaterial, blender_material : bpy.types.Material):
     plastic = PrincipledBSDFWrapper(blender_material, is_readonly=False)
@@ -312,6 +318,13 @@ def plastic_material(rhino_material : r3d.RenderMaterial, blender_material : bpy
     plastic.roughness = roughness
     plastic.metallic = 0.0
     plastic.ior= 1.5
+    
+    # Set material blend mode for plastic transparency (Blender 4.2+ compatibility)
+    if transparency > 0.0:
+        if hasattr(blender_material, 'render_method'):
+            blender_material.render_method = 'BLENDED'  # Modern API
+        else:
+            blender_material.blend_method = 'BLEND'     # Legacy fallback
 
 
 def _get_blender_pbr_texture(pbr : PrincipledBSDFWrapper, field_name : str):
@@ -431,6 +444,13 @@ def rcm_basic_material(rhino_material : r3d.RenderMaterial, blender_material : b
 
     pbr.transmission = transparency
     pbr.ior = ior
+    
+    # Set material blend mode for transparency (Blender 4.2+ compatibility)
+    if transparency > 0.0:
+        if hasattr(blender_material, 'render_method'):
+            blender_material.render_method = 'BLENDED'  # Modern API
+        else:
+            blender_material.blend_method = 'BLEND'     # Legacy fallback
 
     handle_basic_texture(rhino_material, pbr, "bitmap-texture")
 
@@ -498,35 +518,137 @@ def handle_embedded_files(model : r3d.File3dm):
 
 
 
-def handle_materials(context, model : r3d.File3dm, materials, update):
+def handle_materials(context, model : r3d.File3dm, materials, update, options=None):
     """
     """
     handle_embedded_files(model)
 
     if DEFAULT_RHINO_MATERIAL not in materials:
-        tags = utils.create_tag_dict(DEFAULT_RHINO_MATERIAL_ID, DEFAULT_RHINO_MATERIAL)
-        blmat = utils.get_or_create_iddata(context.blend_data.materials, tags, None)
-        default_material(blmat)
+        reuse_materials = options.get("reuse_existing_materials", True) if options else True
+        
+        print(f"Processing default material '{DEFAULT_RHINO_MATERIAL}', reuse_materials={reuse_materials}")
+        
+        if reuse_materials:
+            # Check if default material already exists in blend data to reuse it
+            existing_mat = context.blend_data.materials.get(DEFAULT_RHINO_MATERIAL)
+            if existing_mat is not None:
+                # Reuse existing default material instead of creating new versioned one
+                blmat = existing_mat
+                print(f"  → Found and reusing existing default material: {DEFAULT_RHINO_MATERIAL}")
+            else:
+                print(f"  → No existing default material found, creating new one")
+                tags = utils.create_tag_dict(DEFAULT_RHINO_MATERIAL_ID, DEFAULT_RHINO_MATERIAL)
+                blmat = utils.get_or_create_iddata(context.blend_data.materials, tags, None)
+                default_material(blmat)
+        else:
+            # Create new default material version (allow Blender to add .001, .002 suffixes)
+            print(f"  → Creating new versioned default material")
+            tags = utils.create_tag_dict(DEFAULT_RHINO_MATERIAL_ID, DEFAULT_RHINO_MATERIAL)
+            blmat = utils.get_or_create_iddata(context.blend_data.materials, tags, None)
+            default_material(blmat)
+        
         materials[DEFAULT_RHINO_MATERIAL] = blmat
+        print(f"  → Final default material name: {blmat.name}")
 
     if DEFAULT_TEXT_MATERIAL not in materials:
-        tags = utils.create_tag_dict(DEFAULT_RHINO_TEXT_MATERIAL_ID, DEFAULT_TEXT_MATERIAL)
-        blmat = utils.get_or_create_iddata(context.blend_data.materials, tags, None)
-        default_text_material(blmat)
+        reuse_materials = options.get("reuse_existing_materials", True) if options else True
+        
+        print(f"Processing default text material '{DEFAULT_TEXT_MATERIAL}', reuse_materials={reuse_materials}")
+        
+        if reuse_materials:
+            # Check if default text material already exists in blend data to reuse it
+            existing_mat = context.blend_data.materials.get(DEFAULT_TEXT_MATERIAL)
+            if existing_mat is not None:
+                # Reuse existing default text material instead of creating new versioned one
+                blmat = existing_mat
+                print(f"  → Found and reusing existing default text material: {DEFAULT_TEXT_MATERIAL}")
+            else:
+                print(f"  → No existing default text material found, creating new one")
+                tags = utils.create_tag_dict(DEFAULT_RHINO_TEXT_MATERIAL_ID, DEFAULT_TEXT_MATERIAL)
+                blmat = utils.get_or_create_iddata(context.blend_data.materials, tags, None)
+                default_text_material(blmat)
+        else:
+            # Create new default text material version (allow Blender to add .001, .002 suffixes)
+            print(f"  → Creating new versioned default text material")
+            tags = utils.create_tag_dict(DEFAULT_RHINO_TEXT_MATERIAL_ID, DEFAULT_TEXT_MATERIAL)
+            blmat = utils.get_or_create_iddata(context.blend_data.materials, tags, None)
+            default_text_material(blmat)
+        
         materials[DEFAULT_TEXT_MATERIAL] = blmat
+        print(f"  → Final default text material name: {blmat.name}")
 
+    # Process ALL materials in the file - both render materials and basic materials
     for mat in model.Materials:
         if not mat.PhysicallyBased:
             mat.ToPhysicallyBased()
+        
+        # First, handle render materials (PBR materials with render content)
         m = model.RenderContent.FindId(mat.RenderMaterialInstanceId)
-
-        if not m:
-            continue
-
-        matname = rendermaterial_name(m)
-        if matname not in materials:
-            tags = utils.create_tag_dict(m.Id, m.Name)
-            blmat = utils.get_or_create_iddata(context.blend_data.materials, tags, None)
-            if update:
-                harvest_from_rendercontent(model, m, blmat)
-            materials[matname] = blmat
+        if m:
+            matname = rendermaterial_name(m)
+            if matname not in materials:
+                tags = utils.create_tag_dict(m.Id, m.Name)
+                # Check if user wants to reuse existing materials
+                reuse_materials = options.get("reuse_existing_materials", True) if options else True
+                
+                print(f"Processing render material '{matname}', reuse_materials={reuse_materials}")
+                
+                if reuse_materials:
+                    # Check if material already exists in blend data to reuse it
+                    existing_mat = context.blend_data.materials.get(matname)
+                    if existing_mat is not None:
+                        # Reuse existing material instead of creating new versioned one
+                        blmat = existing_mat
+                        # Don't overwrite existing tags - preserve the original material's metadata
+                        print(f"  → Found and reusing existing render material: {matname}")
+                    else:
+                        print(f"  → No existing render material found for '{matname}', creating new one")
+                        blmat = utils.get_or_create_iddata(context.blend_data.materials, tags, None)
+                else:
+                    # Create new material version (allow Blender to add .001, .002 suffixes)
+                    print(f"  → Creating new versioned render material for '{matname}'")
+                    blmat = utils.get_or_create_iddata(context.blend_data.materials, tags, None)
+                if update:
+                    harvest_from_rendercontent(model, m, blmat)
+                materials[matname] = blmat
+                print(f"  → Final render material name: {blmat.name}")
+            else:
+                print(f"Render material '{matname}' already in materials dict")
+        
+        # Second, handle basic materials (materials without render content)  
+        else:
+            # Skip materials with empty names - they'll use default material
+            if mat.Name == "":
+                continue
+                
+            matname = material_name(mat)
+            if matname not in materials:
+                tags = utils.create_tag_dict(mat.Id, mat.Name)
+                # Check if user wants to reuse existing materials
+                reuse_materials = options.get("reuse_existing_materials", True) if options else True
+                
+                print(f"Processing basic material '{matname}', reuse_materials={reuse_materials}")
+                
+                if reuse_materials:
+                    # Check if material already exists in blend data to reuse it
+                    existing_mat = context.blend_data.materials.get(matname)
+                    if existing_mat is not None:
+                        # Reuse existing material instead of creating new versioned one
+                        blmat = existing_mat
+                        print(f"  → Found and reusing existing basic material: {matname}")
+                    else:
+                        print(f"  → No existing basic material found for '{matname}', creating new one")
+                        blmat = utils.get_or_create_iddata(context.blend_data.materials, tags, None)
+                        # Apply basic material properties for new materials
+                        default_material(blmat)
+                else:
+                    # Create new material version (allow Blender to add .001, .002 suffixes)
+                    print(f"  → Creating new versioned basic material for '{matname}'")
+                    blmat = utils.get_or_create_iddata(context.blend_data.materials, tags, None)
+                    # Apply basic material properties for new materials
+                    default_material(blmat)
+                
+                materials[matname] = blmat
+                print(f"  → Final basic material name: {blmat.name}")
+            else:
+                print(f"Basic material '{matname}' already in materials dict")

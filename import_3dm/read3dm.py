@@ -56,11 +56,19 @@ from . import converters
 
 
 def create_or_get_top_layer(context, filepath):
-    top_collection_name = Path(filepath).stem
-    if top_collection_name in context.blend_data.collections.keys():
-        toplayer = context.blend_data.collections[top_collection_name]
-    else:
-        toplayer = context.blend_data.collections.new(name=top_collection_name)
+    base_name = Path(filepath).stem
+    
+    # Create versioned collection name to avoid contamination
+    version = 1
+    top_collection_name = base_name
+    
+    # Find next available version number
+    while top_collection_name in context.blend_data.collections.keys():
+        version += 1
+        top_collection_name = f"{base_name}_v{version}"
+    
+    # Always create new collection with version suffix
+    toplayer = context.blend_data.collections.new(name=top_collection_name)
     return toplayer
 
 
@@ -97,6 +105,10 @@ def read_3dm(
         print("Failed to import .3dm model: {}".format(filepath))
         return {'CANCELLED'}
 
+    # Check if model was successfully loaded
+    if model is None:
+        print("Failed to read .3dm file: {}".format(filepath))
+        return {'CANCELLED'}
 
     # place model in context so we can access it when we need to
     # find data from different tables, like for instance dimension
@@ -106,7 +118,12 @@ def read_3dm(
     toplayer = create_or_get_top_layer(context, filepath)
 
     # Get proper scale for conversion
-    scale = r3d.UnitSystem.UnitScale(model.Settings.ModelUnitSystem, r3d.UnitSystem.Meters) / context.scene.unit_settings.scale_length
+    if model.Settings is not None:
+        scale = r3d.UnitSystem.UnitScale(model.Settings.ModelUnitSystem, r3d.UnitSystem.Meters) / context.scene.unit_settings.scale_length
+    else:
+        # Fallback to 1:1 scale if Settings is missing
+        print("Warning: 3DM file has no settings, using 1:1 scale")
+        scale = 1.0 / context.scene.unit_settings.scale_length
 
     layerids = {}
     materials = {}
@@ -118,14 +135,14 @@ def read_3dm(
         converters.handle_views(context, model, toplayer, model.NamedViews, "NamedViews", scale)
 
     # Handle materials
-    converters.handle_materials(context, model, materials, update_materials)
+    converters.handle_materials(context, model, materials, update_materials, options)
 
     # Handle layers
     converters.handle_layers(context, model, toplayer, layerids, materials, update_materials, import_hidden_layers)
 
     #build skeletal hierarchy of instance definitions as collections (will be populated by object importer)
     if import_instances:
-        converters.handle_instance_definitions(context, model, toplayer, "Instance Definitions")
+        converters.handle_instance_definitions(context, model, toplayer, "Instance Definitions", options)
 
     # Handle objects
     ob : r3d.File3dmObject = None

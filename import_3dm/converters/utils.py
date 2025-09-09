@@ -103,6 +103,24 @@ def reset_all_dict(context : bpy.types.Context) -> None:
             if rhid:
                 dct[rhid] = item
 
+def init_fresh_dict(context : bpy.types.Context) -> None:
+    """Initialize dictionary structure without populating existing objects.
+    This ensures fresh objects are created for each import session."""
+    global all_dict
+    all_dict = dict()
+    bases = [
+        context.blend_data.objects,
+        context.blend_data.cameras,
+        context.blend_data.lights,
+        context.blend_data.meshes,
+        context.blend_data.materials,
+        context.blend_data.collections,
+        context.blend_data.curves
+    ]
+    for base in bases:
+        t = repr(base).split(',')[1]
+        all_dict[t] = dict()  # Create empty dict structure without populating
+
 def get_dict_for_base(base : bpy.types.bpy_prop_collection) -> Dict[str, bpy.types.ID]:
     global all_dict
     t = repr(base).split(',')[1]

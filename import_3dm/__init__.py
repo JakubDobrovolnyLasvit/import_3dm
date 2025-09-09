@@ -22,14 +22,14 @@
 
 
 bl_info = {
-    "name": "Import Rhinoceros 3D",
-    "author": "Nathan 'jesterKing' Letwory, Joel Putnam, Tom Svilans, Lukas Fertig, Bernd Moeller",
-    "version": (0, 0, 16),
+    "name": "Import Rhinoceros 3D (Fixed) - Lasvit Fork v0.0.17-beta1",
+    "author": "Jakub Dobrovolný (Lasvit) - Fork of original by Nathan 'jesterKing' Letwory, Joel Putnam, Tom Svilans, Lukas Fertig, Bernd Moeller",
+    "version": (0, 0, 17),
     "blender": (3, 5, 0),
     "location": "File > Import > Rhinoceros 3D (.3dm)",
-    "description": "This addon lets you import Rhinoceros 3dm files in Blender 3.5 and later",
+    "description": "LASVIT FORK: Import Rhinoceros 3dm files with versioned collections and improved defaults",
     "warning": "The importer doesn't handle all data in 3dm files yet",
-    "wiki_url": "https://github.com/jesterKing/import_3dm",
+    "wiki_url": "https://github.com/JakubDobrovolnyLasvit/import_3dm",
     "category": "Import-Export",
 }
 
@@ -40,7 +40,7 @@ import bpy
 # ImportHelper is a helper class, defines filename and
 # invoke() function which calls the file selector.
 from bpy_extras.io_utils import ImportHelper
-from bpy.props import StringProperty, BoolProperty, EnumProperty, IntProperty
+from bpy.props import StringProperty, BoolProperty, EnumProperty, IntProperty, FloatProperty
 from bpy.types import Operator
 
 from typing import Any, Dict
@@ -170,10 +170,48 @@ class Import3dm(Operator, ImportHelper):
         default="PREFERENCES",
     )  # type: ignore
 
-    update_materials: BoolProperty(
-        name="Update Materials",
-        description="Update existing materials. When unchecked create new materials if existing ones are found.",
+    # Advanced import options
+    empty_display_size: FloatProperty(
+        name="Empty Display Size",
+        description="Display size for block instance empties (in meters)",
+        default=0.0001,  # 0.1mm
+        min=0.000001,    # 0.001mm minimum
+        max=0.01,        # 10mm maximum  
+        step=0.0001,
+        precision=6,
+    ) # type: ignore
+    
+    merge_vertices: BoolProperty(
+        name="Merge Duplicate Vertices",
+        description="Merge duplicate vertices in mesh geometry",
         default=True,
+    ) # type: ignore
+    
+    merge_distance: FloatProperty(
+        name="Vertex Merge Distance", 
+        description="Distance for merging duplicate vertices (in millimeters)",
+        default=0.001,     # 0.001mm
+        min=0.0001,        # 0.0001mm minimum
+        max=10.0,          # 10mm maximum
+        step=0.001,
+        precision=3,       # Three digits after decimal
+    ) # type: ignore
+    
+    block_import_mode: EnumProperty(
+        items=(("PRESERVE", "Use Existing Definitions", "Keep existing block definitions and add only new blocks (preserves your materials and UV work)"),
+               ("FRESH", "Create Fresh Definitions", "Create new block definition collections with fresh geometry for all blocks")),
+        name="Block Import Mode",
+        description="Choose how to handle block definitions during import",
+        default="PRESERVE",
+    ) # type: ignore
+    
+    material_handling: EnumProperty(
+        items=(("PRESERVE", "Preserve Existing", "Keep existing material properties unchanged, reuse materials by name"),
+               ("UPDATE", "⚠️ Update Properties", "Reuse materials by name but update their properties from 3DM file (affects existing materials!)"),
+               ("CREATE_NEW", "Create New Versions", "Create new material versions (.001, .002) with 3DM properties")),
+        name="Material Handling",
+        description="Choose how to handle materials during import",
+        default="PRESERVE",
     ) # type: ignore
 
     def execute(self, context : bpy.types.Context):
@@ -188,7 +226,7 @@ class Import3dm(Operator, ImportHelper):
             "import_extrusions":self.import_extrusions,
             "import_brep":self.import_brep,
             "import_pointset":self.import_pointset,
-            "update_materials":self.update_materials,
+            "update_materials":(self.material_handling in ["UPDATE", "CREATE_NEW"]),
             "import_hidden_objects":self.import_hidden_objects,
             "import_hidden_layers":self.import_hidden_layers,
             "import_groups":self.import_groups,
@@ -197,51 +235,93 @@ class Import3dm(Operator, ImportHelper):
             "import_instances_grid_layout":self.import_instances_grid_layout,
             "import_instances_grid":self.import_instances_grid,
             "link_materials_to":self.link_materials_to,
+            "empty_display_size":self.empty_display_size,
+            "merge_vertices":self.merge_vertices,
+            "merge_distance":self.merge_distance / 1000.0,  # Convert mm to meters
+            "create_fresh_block_definitions":(self.block_import_mode == "FRESH"),
+            "reuse_existing_materials":(self.material_handling != "CREATE_NEW"),
         }
-        return read_3dm(context, options)
+        
+        try:
+            result = read_3dm(context, options)
+            if result == {'CANCELLED'}:
+                self.report({'ERROR'}, f"Failed to import .3dm file: {self.filepath}")
+                return {'CANCELLED'}
+            elif result == {'FINISHED'}:
+                self.report({'INFO'}, f"Successfully imported {self.filepath}")
+                return {'FINISHED'}
+            else:
+                return result
+        except Exception as e:
+            self.report({'ERROR'}, f"Import failed with error: {str(e)}")
+            return {'CANCELLED'}
 
     def draw(self, _ : bpy.types.Context):
         layout = self.layout
         layout.label(text="Import .3dm v{}.{}.{}".format(bl_info_version[0], bl_info_version[1], bl_info_version[2]))
 
         box = layout.box()
-        box.label(text="Objects")
-        box.prop(self, "import_brep")
-        box.prop(self, "import_extrusions")
-        box.prop(self, "import_subd")
+        box.label(text="🔺 Geometry")
+        
+        # Meshes first, in its own row
         box.prop(self, "import_meshes")
-        box.prop(self, "import_curves")
-        box.prop(self, "import_annotations")
-        box.prop(self, "import_poinset")
+        
+        # Mesh-specific settings (indented under meshes)
+        if self.import_meshes:
+            mesh_box = box.box()
+            mesh_box.prop(self, "merge_vertices")
+            if self.merge_vertices:
+                mesh_box.label(text="Vertex Merge Distance:")
+                mesh_box.prop(self, "merge_distance", text="Distance (mm)")
+        
+        # Other geometry types in grid layout
+        row = box.row()
+        row.prop(self, "import_brep")
+        row.prop(self, "import_extrusions") 
+        row = box.row()
+        row.prop(self, "import_subd")
+        row.prop(self, "import_curves")
+        row = box.row()
+        row.prop(self, "import_annotations")
+        row.prop(self, "import_pointset")
 
         box = layout.box()
-        box.label(text="Visibility")
-        box.prop(self, "import_hidden_objects")
-        box.prop(self, "import_hidden_layers")
+        box.label(text="📦 Blocks")
+        box.prop(self, "import_instances")
+        box.label(text="Block Import Mode:")
+        box.prop(self, "block_import_mode", text="")
+        row = box.row() 
+        row.prop(self, "empty_display_size", text="Empty Size (m)")
 
         box = layout.box()
-        box.label(text="Views")
+        box.label(text="👁 Hidden Content")
+        box.prop(self, "import_hidden_objects", text="Import Hidden Objects")
+        box.prop(self, "import_hidden_layers", text="Import Hidden Layers")
+
+        box = layout.box()
+        box.label(text="📷 Cameras")
         row = box.row()
         row.prop(self, "import_views")
         row.prop(self, "import_named_views")
 
         box = layout.box()
-        box.label(text="Groups")
-        row = box.row()
-        row.prop(self, "import_groups")
-        row.prop(self, "import_nested_groups")
+        box.label(text="🎨 Materials")
+        box.label(text="Material Handling:")
+        box.prop(self, "material_handling", text="")
+        box.prop(self, "link_materials_to")
 
         box = layout.box()
-        box.label(text="Blocks")
+        box.label(text="📁 Groups → Collections")
         row = box.row()
-        box.prop(self, "import_instances")
+        row.prop(self, "import_groups", text="Convert Groups")
+        row.prop(self, "import_nested_groups", text="Nested Groups")
+
+        box = layout.box()
+        box.label(text="🔲 Grid Layout")
         box.prop(self, "import_instances_grid_layout")
         box.prop(self, "import_instances_grid")
 
-        box = layout.box()
-        box.label(text="Materials")
-        box.prop(self, "link_materials_to")
-        box.prop(self, "update_materials")
+        # Advanced section removed as merge_distance moved to Objects panel
 
 # Only needed if you want to add into a dynamic menu
 def menu_func_import(self, _ : bpy.types.Context):
