@@ -51,7 +51,17 @@ def modules_path():
 modules_path()
 
 
-import rhino3dm as r3d
+try:
+    import rhino3dm as r3d
+    print(f"✅ rhino3dm {r3d.__version__} loaded successfully")
+    if hasattr(r3d, 'AnnotationTypes'):
+        print("✅ AnnotationTypes available")
+    else:
+        print("⚠️ AnnotationTypes missing")
+except Exception as e:
+    print(f"❌ rhino3dm import failed: {e}")
+    raise
+
 from . import converters
 
 
