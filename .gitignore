@@ -20,11 +20,15 @@ parts/
 sdist/
 var/
 wheels/
+# Exception: Include addon dependency wheels (required for Blender distribution)
+!import_3dm/wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 *.whl
+# Exception: Include addon dependency wheel files
+!import_3dm/wheels/*.whl
 *.zip
 *.tar.gz
 *-win*/
