@@ -119,3 +119,9 @@ venv.bak/
 
 # Rhino 3D model files
 *.3dm
+
+# Claude Code configuration
+.claude/
+
+# Large documentation files (local reference only)
+blender_python_reference_5_0/

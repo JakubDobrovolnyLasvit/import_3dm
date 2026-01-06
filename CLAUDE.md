@@ -2,11 +2,57 @@
 
 ## Project Information
 - **Original Repository**: [jesterKing/import_3dm](https://github.com/jesterKing/import_3dm)
-- **Fork Repository**: [JakubDobrovolnyLasvit/import_3dm](https://github.com/JakubDobrovolnyLasvit/import_3dm) 
-- **Current Version**: v0.0.17
+- **Fork Repository**: [JakubDobrovolnyLasvit/import_3dm](https://github.com/JakubDobrovolnyLasvit/import_3dm)
+- **Current Version**: v0.0.18 (In Development)
+- **Previous Stable**: v0.0.17-beta1
 - **Fork Maintainer**: Jakub Dobrovolný (Lasvit)
 
 This is a fork of the official Blender 3DM import addon with specific fixes for collection management and improved default settings.
+
+## Project Status: v0.0.18 - Blender 5.0 Migration 🚧
+
+### 📋 Current Status (January 6, 2026)
+- **Version**: v0.0.18 (In Development)
+- **Target**: Blender 5.0+ compatibility
+- **Git Status**: Ready for testing
+- **Python Version**: ✅ Confirmed - Blender 5.0 uses Python 3.11 (VFX Reference Platform 2025)
+- **Wheels Status**: ✅ Fixed - cp311 wheels configured in manifest
+
+### 🔄 Version 0.0.18 Changes (In Progress)
+
+**🆕 BLENDER 5.0 COMPATIBILITY UPDATE**
+- **Breaking Change**: Minimum Blender version bumped from 4.2.0 → 5.0.0
+- **Reason**: Aligning with latest Blender release and ecosystem
+- **Impact**: Required Python 3.11 wheels (same as Blender 4.2)
+- **Location**: `import_3dm/__init__.py:28`, `import_3dm/blender_manifest.toml:28`
+- **Status**: ✅ **FIXED** - Blender 5.0 uses Python 3.11, existing wheels work!
+
+**🐛 MATERIAL WRAPPER FIX**
+- **Issue**: PlasterWrapper initialization passing deprecated `use_nodes=True` parameter
+- **Fix**: Removed unnecessary parameter from super().__init__() call
+- **Location**: `import_3dm/converters/material.py:202`
+- **Impact**: Prevents potential warnings or errors in material system
+- **Status**: ✅ **FIXED**
+
+**✅ DEPENDENCY FIX (RESOLVED)**
+- **Discovery**: Blender 5.0 uses Python 3.11 (same as Blender 4.2), not 3.12/3.13
+- **Solution**: Uncommented and configured existing cp311 wheels in manifest
+- **Wheels**: rhino3dm-8.17.0 for cp311 (Windows, macOS, Linux)
+- **Location**: `import_3dm/blender_manifest.toml:50-54`
+- **Source**: Confirmed via VFX Reference Platform 2025 documentation
+
+### 🚀 Next Steps for v0.0.18
+1. ✅ ~~Research Blender 5.0 Python Version~~ - Confirmed: Python 3.11
+2. ✅ ~~Source rhino3dm Wheels~~ - Existing cp311 wheels work
+3. ✅ ~~Update Manifest~~ - Wheels configured in `blender_manifest.toml`
+4. **Testing**: Test addon installation and functionality in Blender 5.0
+5. **Commit & Release**: Complete version 0.0.18 release
+
+### ⚠️ Known Issues v0.0.18
+- **Untested**: Changes not yet tested in actual Blender 5.0 environment
+- **Pending**: Need user confirmation that addon installs and imports work correctly
+
+---
 
 ## Project Status: v0.0.17-beta1 RELEASE READY ✅
 
@@ -164,10 +210,16 @@ import_3dm/
 
 ## Development Notes
 - The addon uses rhino3dm.py library for .3dm file parsing
-- Blender version compatibility: 3.5.0+
+- **Blender version compatibility**:
+  - v0.0.17 and earlier: Blender 3.5.0 - 4.x
+  - v0.0.18+: Blender 5.0.0+ only (breaking change)
 - Unit system properly handles scale conversion from Rhino to Blender
 - Material linking supports both object and data linking modes
+- **Python wheel management**: Different Blender versions require different Python versions:
+  - Blender 4.2: Python 3.11 (cp311)
+  - Blender 5.0: Python 3.11 (cp311) - Confirmed via VFX Reference Platform 2025
 
 ## Documentation Resources
 - **Project-specific API notes**: `api-notes.md` - Import/export specific Blender Python API patterns and solutions
+- **Blender 5.0 API Reference**: `blender_python_reference_5_0/` - Complete Blender 5.0 Python API reference (818MB, local)
 - **Shared documentation**: `/docs/blender_python_reference_4_5/` - Complete Blender 4.5 Python API reference (shared across projects)

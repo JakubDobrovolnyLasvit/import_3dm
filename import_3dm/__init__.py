@@ -22,10 +22,10 @@
 
 
 bl_info = {
-    "name": "Import Rhinoceros 3D (Fixed) - Lasvit Fork v0.0.17-beta1",
+    "name": "Import Rhinoceros 3D (Fixed) - Lasvit Fork v0.0.18",
     "author": "Jakub Dobrovolný (Lasvit) - Fork of original by Nathan 'jesterKing' Letwory, Joel Putnam, Tom Svilans, Lukas Fertig, Bernd Moeller",
-    "version": (0, 0, 17),
-    "blender": (3, 5, 0),
+    "version": (0, 0, 18),
+    "blender": (5, 0, 0),
     "location": "File > Import > Rhinoceros 3D (.3dm)",
     "description": "LASVIT FORK: Import Rhinoceros 3dm files with versioned collections and improved defaults",
     "warning": "The importer doesn't handle all data in 3dm files yet",

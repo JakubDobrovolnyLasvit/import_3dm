@@ -199,7 +199,7 @@ class PlasterWrapper(ShaderWrapper):
     NODES_LIST = ShaderWrapper.NODES_LIST + NODES_LIST
 
     def __init__(self, material):
-        super(PlasterWrapper, self).__init__(material, is_readonly=False, use_nodes=True)
+        super(PlasterWrapper, self).__init__(material, is_readonly=False)
 
     def update(self):
         super(PlasterWrapper, self).update()
